@@ -3,7 +3,7 @@ This is the PyTorch implementation of VGG network trained on CIFAR10 dataset
 
 
 ### Download the model
-The trained VGG model. [VGG](http://www.cs.unc.edu/~cyfu/cifar10/model_best.pth.tar)
+The trained VGG model. 92.4% Accuracy [VGG](http://www.cs.unc.edu/~cyfu/cifar10/model_best.pth.tar)
 
 ### Requirements. 
 [PyTorch] (https://github.com/pytorch/pytorch)
