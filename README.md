@@ -10,9 +10,10 @@ This is the PyTorch implementation of VGG network trained on CIFAR10 dataset
 The trained VGG model. 92.4% Accuracy [VGG](http://www.cs.unc.edu/~cyfu/cifar10/model_best.pth.tar)
 
 ### Evaluation 
-	```Shell
+	
+	
 	wget http://www.cs.unc.edu/~cyfu/cifar10/model_best.pth.tar
 	python main.py --resume=./model_best.pth.tar -e
-	```
+	
 
 
