@@ -11,22 +11,22 @@ import torch.optim
 import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-from vgg import *
+#from vgg import *
+import vgg
 
-
-#model_names = sorted(name for name in models.__dict__
-#    if name.islower() and not name.startswith("__")
-#    and callable(models.__dict__[name]))
+model_names = sorted(name for name in vgg.__dict__
+    if name.islower() and not name.startswith("__")
+    and callable(vgg.__dict__[name]))
 
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 #parser.add_argument('data', metavar='DIR',
 #                    help='path to dataset')
-#parser.add_argument('--arch', '-a', metavar='ARCH', default='vgg19',
-#                    choices=model_names,
-#                    help='model architecture: ' +
-#                        ' | '.join(model_names) +
-#                        ' (default: resnet18)')
+parser.add_argument('--arch', '-a', metavar='ARCH', default='vgg19',
+                    choices=model_names,
+                    help='model architecture: ' +
+                        ' | '.join(model_names) +
+                        ' (default: vgg19)')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=300, type=int, metavar='N',
@@ -49,6 +49,10 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
+parser.add_argument('--half', dest='half', action='store_true', 
+                    help='use half-precision(16-bit) ')
+parser.add_argument('--save-dir', dest='save_dir', help='The directory used to save the trained models', default='save_temp', type=str)
+
 
 best_prec1 = 0
 
@@ -57,6 +61,12 @@ def main():
     global args, best_prec1
     args = parser.parse_args()
 
+
+    # Check the save_dir exists or not
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
+
+
     # create model
 #    if args.pretrained:
 #        print("=> using pre-trained model '{}'".format(args.arch))
@@ -64,7 +74,8 @@ def main():
 #    else:
 #        print("=> creating model '{}'".format(args.arch))
 #        model = models.__dict__[args.arch]()
-    model = vgg19()
+    #model = vgg19()
+    model = vgg.__dict__[args.arch]()
 
     #if args.arch.startswith('alexnet') or args.arch.startswith('vgg'):
     #    model.features = torch.nn.DataParallel(model.features)
@@ -72,7 +83,8 @@ def main():
     #else:
     #    model = torch.nn.DataParallel(model).cuda()
     model.features = torch.nn.DataParallel(model.features)
-    model.cuda()
+    model.cuda() 
+
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -116,6 +128,12 @@ def main():
     # define loss function (criterion) and pptimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
+    if args.half:
+        model.half()
+        criterion.half()
+    
+
+
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
@@ -140,7 +158,7 @@ def main():
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
             'best_prec1': best_prec1,
-        }, is_best, filename='./models/checkpoint_{}.pth.tar'.format(epoch))
+        }, is_best, filename=os.path.join(args.save_dir, 'checkpoint_{}.tar'.format(epoch)))
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
@@ -154,26 +172,32 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
     end = time.time()
     for i, (input, target) in enumerate(train_loader):
+
         # measure data loading time
         data_time.update(time.time() - end)
 
         target = target.cuda(async=True)
-        input_var = torch.autograd.Variable(input)
+        input_var = torch.autograd.Variable(input).cuda()
         target_var = torch.autograd.Variable(target)
+        
+        if args.half:
+            input_var = input_var.half()
 
         # compute output
         output = model(input_var)
         loss = criterion(output, target_var)
 
-        # measure accuracy and record loss
-        prec1 = accuracy(output.data, target)[0]
-        losses.update(loss.data[0], input.size(0))
-        top1.update(prec1[0], input.size(0))
-
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        output = output.float()
+        loss = loss.float()
+        # measure accuracy and record loss
+        prec1 = accuracy(output.data, target)[0]
+        losses.update(loss.data[0], input.size(0))
+        top1.update(prec1[0], input.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -200,12 +224,18 @@ def validate(val_loader, model, criterion):
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
         target = target.cuda(async=True)
-        input_var = torch.autograd.Variable(input, volatile=True)
+        input_var = torch.autograd.Variable(input, volatile=True).cuda()
         target_var = torch.autograd.Variable(target, volatile=True)
+
+        if args.half:
+            input_var = input_var.half()
 
         # compute output
         output = model(input_var)
         loss = criterion(output, target_var)
+        
+        output = output.float()
+        loss = loss.float()
 
         # measure accuracy and record loss
         prec1 = accuracy(output.data, target)[0]
@@ -232,8 +262,8 @@ def validate(val_loader, model, criterion):
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
-    if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+    #if is_best:
+    #    shutil.copyfile(filename, 'model_best.pth.tar')
 
 
 class AverageMeter(object):
