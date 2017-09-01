@@ -11,22 +11,19 @@ import torch.optim
 import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-#from vgg import *
 import vgg
 
 model_names = sorted(name for name in vgg.__dict__
     if name.islower() and not name.startswith("__")
-    and callable(vgg.__dict__[name]))
+                     and name.startswith("vgg")
+                     and callable(vgg.__dict__[name]))
 
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-#parser.add_argument('data', metavar='DIR',
-#                    help='path to dataset')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='vgg19',
                     choices=model_names,
-                    help='model architecture: ' +
-                        ' | '.join(model_names) +
-                        ' (default: vgg19)')
+                    help='model architecture: ' + ' | '.join(model_names) +
+                    ' (default: vgg19)')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=300, type=int, metavar='N',
@@ -49,9 +46,11 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
-parser.add_argument('--half', dest='half', action='store_true', 
+parser.add_argument('--half', dest='half', action='store_true',
                     help='use half-precision(16-bit) ')
-parser.add_argument('--save-dir', dest='save_dir', help='The directory used to save the trained models', default='save_temp', type=str)
+parser.add_argument('--save-dir', dest='save_dir',
+                    help='The directory used to save the trained models',
+                    default='save_temp', type=str)
 
 
 best_prec1 = 0
@@ -66,30 +65,15 @@ def main():
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
-
-    # create model
-#    if args.pretrained:
-#        print("=> using pre-trained model '{}'".format(args.arch))
-#        model = models.__dict__[args.arch](pretrained=True)
-#    else:
-#        print("=> creating model '{}'".format(args.arch))
-#        model = models.__dict__[args.arch]()
-    #model = vgg19()
     model = vgg.__dict__[args.arch]()
 
-    #if args.arch.startswith('alexnet') or args.arch.startswith('vgg'):
-    #    model.features = torch.nn.DataParallel(model.features)
-    #    model.cuda()
-    #else:
-    #    model = torch.nn.DataParallel(model).cuda()
     model.features = torch.nn.DataParallel(model.features)
-    model.cuda() 
-
+    model.cuda()
 
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
+            print "=> loading checkpoint '{}'".format(args.resume)
             checkpoint = torch.load(args.resume)
             args.start_epoch = checkpoint['epoch']
             best_prec1 = checkpoint['best_prec1']
@@ -97,13 +81,10 @@ def main():
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.evaluate, checkpoint['epoch']))
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+            print "=> no checkpoint found at '{}'".format(args.resume)
 
     cudnn.benchmark = True
 
-    # Data loading code
-    #traindir = os.path.join(args.data, 'train')
-    #valdir = os.path.join(args.data, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
@@ -131,8 +112,6 @@ def main():
     if args.half:
         model.half()
         criterion.half()
-    
-
 
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
@@ -162,6 +141,9 @@ def main():
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
+    """
+        Run one train epoch
+    """
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -179,7 +161,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
         target = target.cuda(async=True)
         input_var = torch.autograd.Variable(input).cuda()
         target_var = torch.autograd.Variable(target)
-        
         if args.half:
             input_var = input_var.half()
 
@@ -209,11 +190,14 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                   epoch, i, len(train_loader), batch_time=batch_time,
-                   data_time=data_time, loss=losses, top1=top1))
+                      epoch, i, len(train_loader), batch_time=batch_time,
+                      data_time=data_time, loss=losses, top1=top1))
 
 
 def validate(val_loader, model, criterion):
+    """
+    Run evaluation
+    """
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -233,7 +217,7 @@ def validate(val_loader, model, criterion):
         # compute output
         output = model(input_var)
         loss = criterion(output, target_var)
-        
+
         output = output.float()
         loss = loss.float()
 
@@ -251,20 +235,19 @@ def validate(val_loader, model, criterion):
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                   i, len(val_loader), batch_time=batch_time, loss=losses,
-                   top1=top1))
+                      i, len(val_loader), batch_time=batch_time, loss=losses,
+                      top1=top1))
 
     print(' * Prec@1 {top1.avg:.3f}'
           .format(top1=top1))
 
     return top1.avg
 
-
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+    """
+    Save the training model
+    """
     torch.save(state, filename)
-    #if is_best:
-    #    shutil.copyfile(filename, 'model_best.pth.tar')
-
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
