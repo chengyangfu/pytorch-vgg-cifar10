@@ -6,14 +6,20 @@ This is the PyTorch implementation of VGG network trained on CIFAR10 dataset
 
 [torchvision] (https://github.com/pytorch/vision)
 
+### Update.
+Adding support for CPU. Add ```--cpu``` can make the training or evaluation in cpu mode.
+
 ### Download the model
 The trained VGG model. 92.4% Accuracy [VGG](http://www.cs.unc.edu/~cyfu/cifar10/model_best.pth.tar)
 
 ### Evaluation 
 	
-	
+	# CUDA
 	wget http://www.cs.unc.edu/~cyfu/cifar10/model_best.pth.tar
 	python main.py --resume=./model_best.pth.tar -e
+	# or use CPU version
+	wget http://www.cs.unc.edu/~cyfu/cifar10/model_bes_cpu.pth.tar
+	python main.py --resume=./model_best_cpu.pth.tar -e --cpu
 ### Train with script! (16-bit precision) 
 	
 	

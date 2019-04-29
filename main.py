@@ -48,6 +48,8 @@ parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
 parser.add_argument('--half', dest='half', action='store_true',
                     help='use half-precision(16-bit) ')
+parser.add_argument('--cpu', dest='cpu', action='store_true',
+                    help='use cpu')
 parser.add_argument('--save-dir', dest='save_dir',
                     help='The directory used to save the trained models',
                     default='save_temp', type=str)
@@ -68,7 +70,10 @@ def main():
     model = vgg.__dict__[args.arch]()
 
     model.features = torch.nn.DataParallel(model.features)
-    model.cuda()
+    if args.cpu:
+        model.cpu()
+    else:
+        model.cuda()
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -107,7 +112,11 @@ def main():
         num_workers=args.workers, pin_memory=True)
 
     # define loss function (criterion) and pptimizer
-    criterion = nn.CrossEntropyLoss().cuda()
+    criterion = nn.CrossEntropyLoss()
+    if args.cpu:
+        criterion = criterion.cpu()
+    else:
+        criterion = criterion.cuda()
 
     if args.half:
         model.half()
@@ -158,15 +167,15 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # measure data loading time
         data_time.update(time.time() - end)
 
-        target = target.cuda(async=True)
-        input_var = torch.autograd.Variable(input).cuda()
-        target_var = torch.autograd.Variable(target)
+        if args.cpu == False:
+            input = input.cuda(async=True)
+            target = target.cuda(async=True)
         if args.half:
-            input_var = input_var.half()
+            input = input.half()
 
         # compute output
-        output = model(input_var)
-        loss = criterion(output, target_var)
+        output = model(input)
+        loss = criterion(output, target)
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -177,8 +186,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
         loss = loss.float()
         # measure accuracy and record loss
         prec1 = accuracy(output.data, target)[0]
-        losses.update(loss.data[0], input.size(0))
-        top1.update(prec1[0], input.size(0))
+        losses.update(loss.item(), input.size(0))
+        top1.update(prec1.item(), input.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -207,16 +216,17 @@ def validate(val_loader, model, criterion):
 
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
-        target = target.cuda(async=True)
-        input_var = torch.autograd.Variable(input, volatile=True).cuda()
-        target_var = torch.autograd.Variable(target, volatile=True)
+        if args.cpu == False:
+            input = input.cuda(async=True)
+            target = target.cuda(async=True)
 
         if args.half:
-            input_var = input_var.half()
+            input = input.half()
 
         # compute output
-        output = model(input_var)
-        loss = criterion(output, target_var)
+        with torch.no_grad():
+            output = model(input)
+            loss = criterion(output, target)
 
         output = output.float()
         loss = loss.float()
